@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { vapi } from "@/lib/vapi.sdk";
-import { interviewer } from "@/constants";
+// Using workflow-only integration; assistant config not used directly
 import { createFeedback } from "@/lib/actions/general.action";
 
 enum CallStatus {
@@ -34,6 +34,7 @@ const Agent = ({
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastMessage, setLastMessage] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
     const onCallStart = () => {
@@ -116,27 +117,73 @@ const Agent = ({
 
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
+    setErrorMessage(""); // Clear previous errors
 
-    if (type === "generate") {
-      await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-        variableValues: {
-          username: userName,
-          userid: userId,
-        },
-      });
-    } else {
-      let formattedQuestions = "";
-      if (questions) {
-        formattedQuestions = questions
-          .map((question) => `- ${question}`)
-          .join("\n");
+    try {
+      // Try assistant ID first (for direct voice calls), fallback to workflow ID
+      const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+      const workflowId = process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID;
+      
+      const vapiId = assistantId || workflowId;
+
+      if (!vapiId) {
+        const errorMsg = "Missing Vapi configuration. Please set NEXT_PUBLIC_VAPI_ASSISTANT_ID or NEXT_PUBLIC_VAPI_WORKFLOW_ID in .env.local";
+        console.error(errorMsg);
+        setErrorMessage(errorMsg);
+        setCallStatus(CallStatus.INACTIVE);
+        return;
       }
 
-      await vapi.start(interviewer, {
-        variableValues: {
-          questions: formattedQuestions,
-        },
+      console.log(`Starting call with ${assistantId ? 'Assistant' : 'Workflow'} ID:`, vapiId);
+
+      // Validate UUID format
+      if (!/^[a-f0-9-]{36}$/i.test(vapiId)) {
+        console.warn(
+          "Vapi ID does not match expected UUID format. This may cause issues."
+        );
+      }
+
+      // Prepare variables based on call type
+      let variableValues: Record<string, string> = {
+        username: userName || "User",
+        userid: userId || "unknown",
+      };
+
+      // Add questions for interview mode (not generate mode)
+      if (type !== "generate" && questions) {
+        const formattedQuestions = questions
+          .map((question) => `- ${question}`)
+          .join("\n");
+        variableValues.questions = formattedQuestions;
+      }
+
+      console.log("Starting call with variables:", variableValues);
+
+      await vapi.start(vapiId, {
+        variableValues,
       });
+    } catch (err: any) {
+      console.error("Failed to start call:", err);
+      
+      // Extract detailed error from Vapi response
+      let errorDetail = "Failed to start call. Please check your configuration.";
+      
+      if (err?.error?.message) {
+        errorDetail = err.error.message;
+      } else if (err?.message) {
+        errorDetail = err.message;
+      }
+      
+      console.error("Vapi Error Details:", {
+        status: err?.status,
+        statusCode: err?.error?.statusCode,
+        message: err?.error?.message,
+        error: err?.error?.error,
+        fullError: err
+      });
+      
+      setErrorMessage(errorDetail);
+      setCallStatus(CallStatus.INACTIVE);
     }
   };
 
@@ -178,7 +225,15 @@ const Agent = ({
         </div>
       </div>
 
-      {messages.length > 0 && (
+      {errorMessage && (
+        <div className="transcript-border">
+          <div className="transcript" style={{ color: "#ef4444" }}>
+            <p>{errorMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {messages.length > 0 && !errorMessage && (
         <div className="transcript-border">
           <div className="transcript">
             <p

@@ -98,6 +98,7 @@ FIREBASE_PRIVATE_KEY=
 Notes:
 - Create a Firebase project and enable Email/Password Auth.
 - Generate a Vapi Web Token and Workflow ID from the Vapi dashboard (`https://vapi.ai`).
+- **Having issues?** See [VAPI_TROUBLESHOOTING.md](./VAPI_TROUBLESHOOTING.md) for detailed setup help.
 
 ## Available Scripts
 

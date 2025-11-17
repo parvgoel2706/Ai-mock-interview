@@ -23,11 +23,10 @@ const Feedback = async ({ params }: RouteParams) => {
   });
 
   return (
-    <section className="section-feedback">
+    <section className="section-feedback mt-2 pt-6 mb-12">
       <div className="flex flex-row justify-center">
-        <h1 className="text-4xl font-semibold">
-          Feedback on the Interview -{" "}
-          <span className="capitalize">{interview.role}</span> Interview
+        <h1 className="interview-heading">
+          Feedback on the Interview - <span className="capitalize">{interview.role}</span> Interview
         </h1>
       </div>
 
